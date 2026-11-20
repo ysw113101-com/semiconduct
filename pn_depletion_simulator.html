@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PN 접합 공핍층 시뮬레이터</title>
+<style>
+:root{--ink:#17243a;--muted:#64748b;--p:#ef7777;--n:#4c91e8;--purple:#9270df;--line:#d9e2ef;--bg:#f4f7fb}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif}
+main{max-width:1100px;margin:auto;padding:22px 16px 40px}
+h1{font-size:clamp(24px,4vw,36px);margin:0 0 8px}h2{font-size:19px;margin:0 0 12px}
+.sub{color:var(--muted);margin:0 0 20px;line-height:1.6}
+.panel{background:white;border:1px solid var(--line);border-radius:18px;padding:18px;margin:14px 0;box-shadow:0 5px 18px #1d355710}
+.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+button{border:1px solid var(--line);background:#fff;color:var(--ink);padding:10px 16px;border-radius:12px;font-weight:700;cursor:pointer}
+button.active{background:var(--ink);color:white;border-color:var(--ink)}
+label{font-weight:700}input[type=range]{width:min(340px,65vw);accent-color:#6c56c8}
+.status{margin-left:auto;font-weight:800;color:#6748b5}
+svg{width:100%;height:auto;display:block}
+.legend{display:flex;gap:16px;flex-wrap:wrap;color:var(--muted);font-size:13px;margin-top:8px}
+.dot{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+.explain{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.explain article{background:#f8faff;border:1px solid var(--line);border-radius:14px;padding:13px;line-height:1.55}
+.explain b{display:block;margin-bottom:5px}
+.note{background:#fff8e8;border-color:#f2dfae;line-height:1.65}
+.small{font-size:13px;color:var(--muted);line-height:1.6}
+@media(max-width:680px){.explain{grid-template-columns:1fr}.status{width:100%;margin-left:0}.panel{padding:13px}}
+</style>
+</head>
+<body>
+<main>
+<h1>PN 접합 공핍층 시뮬레이터</h1>
+<p class="sub">전압을 바꾸면서 전자·정공의 이동, 공핍층 폭, 내부 전기장이 어떻게 달라지는지 관찰해 보세요.</p>
+
+<section class="panel">
+ <div class="controls">
+  <button id="zero">전압 없음</button><button id="forward" class="active">순방향 바이어스</button><button id="reverse">역방향 바이어스</button>
+  <span class="status" id="modeText">순방향 바이어스</span>
+ </div>
+ <div class="controls" style="margin-top:16px">
+  <label for="voltage">인가 전압</label>
+  <input id="voltage" type="range" min="-5" max="0.8" step="0.1" value="0.6">
+  <strong id="voltageText">+0.6 V</strong>
+  <span class="small">양수: 순방향 · 음수: 역방향</span>
+ </div>
+</section>
+
+<section class="panel">
+ <h2>1. 접합부에서 일어나는 변화</h2>
+ <svg id="diagram" viewBox="0 0 900 430" role="img" aria-label="PN 접합의 전자, 정공, 고정 이온, 공핍층 및 전기장 시각화">
+  <defs>
+   <marker id="arrBlue" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6" fill="#1769c2"/></marker>
+   <marker id="arrRed" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6" fill="#d94d4d"/></marker>
+   <marker id="arrField" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6" fill="#7652c8"/></marker>
+  </defs>
+  <rect x="35" y="70" width="415" height="270" rx="15" fill="#ffe9e9" stroke="#ef9b9b"/>
+  <rect x="450" y="70" width="415" height="270" rx="15" fill="#e7f1ff" stroke="#8bb8f0"/>
+  <text x="242" y="48" text-anchor="middle" font-size="24" font-weight="800" fill="#c64e4e">P형 반도체</text>
+  <text x="657" y="48" text-anchor="middle" font-size="24" font-weight="800" fill="#276fbd">N형 반도체</text>
+  <rect id="depletion" x="390" y="70" width="120" height="270" fill="#bca7f2" opacity=".42" stroke="#7652c8" stroke-width="2" stroke-dasharray="7 5"/>
+  <text id="depLabel" x="450" y="95" text-anchor="middle" font-size="16" font-weight="800" fill="#5839a5">공핍층</text>
+  <g id="fixed"></g><g id="carriers"></g><g id="motions"></g>
+  <line x1="450" y1="365" x2="450" y2="385" stroke="#64748b" stroke-width="2"/>
+  <text x="450" y="410" text-anchor="middle" font-size="15" fill="#475569">접합면</text>
+  <text x="60" y="385" font-size="14" fill="#64748b">정공(+) 다수</text>
+  <text x="740" y="385" font-size="14" fill="#64748b">전자(−) 다수</text>
+  <text x="450" y="20" text-anchor="middle" font-size="14" fill="#64748b">개념도 · 실제 입자 수와 폭의 비율을 그대로 나타낸 것은 아님</text>
+ </svg>
+ <div class="legend">
+  <span><i class="dot" style="background:#ef7777"></i>정공(+) 이동 가능한 양전하</span>
+  <span><i class="dot" style="background:#2878d0"></i>전자(−) 이동 가능한 음전하</span>
+  <span><i class="dot" style="background:#e6a2a2"></i>고정된 억셉터 이온(−)</span>
+  <span><i class="dot" style="background:#75a9ed"></i>고정된 도너 이온(+)</span>
+  <span><i class="dot" style="background:#9270df"></i>공핍층</span>
+ </div>
+</section>
+
+<section class="panel">
+ <h2>2. 공핍층 안의 전기장</h2>
+ <svg viewBox="0 0 900 155" role="img" aria-label="공핍층 내부 전기장은 N형의 양이온 쪽에서 P형의 음이온 쪽으로 향함">
+  <rect x="80" y="35" width="740" height="78" rx="12" fill="#f1edff" stroke="#c8b8ef"/>
+  <text x="115" y="83" font-size="28" font-weight="800" fill="#c65b5b">−</text>
+  <text x="785" y="83" font-size="28" font-weight="800" fill="#2675c9">+</text>
+  <line x1="720" y1="74" x2="185" y2="74" stroke="#7652c8" stroke-width="5" marker-end="url(#arrField)"/>
+  <text x="450" y="25" text-anchor="middle" font-size="17" font-weight="800" fill="#6244ad">공핍층 내부 전기장 방향: N형 → P형</text>
+  <text x="450" y="139" text-anchor="middle" font-size="13" fill="#64748b">고정된 도너 이온(+)에서 억셉터 이온(−) 방향</text>
+ </svg>
+ <p id="fieldText" class="small">순방향 전압은 원래의 내부 전기장을 약하게 만들어 전위 장벽을 낮춥니다.</p>
+</section>
+
+<section class="panel">
+ <h2>3. 지금 상태에서 일어나는 일</h2>
+ <div class="explain" id="explain">
+  <article><b>공핍층</b><span id="widthText">좁아짐</span></article>
+  <article><b>다수 운반자</b><span id="carrierText">정공과 전자가 접합부 쪽으로 이동</span></article>
+  <article><b>전기장·전류</b><span id="currentText">내부 전기장이 약해지고 전류가 잘 흐름</span></article>
+ </div>
+</section>
+<section class="panel note">
+ <b>꼭 알아둘 점</b><br>
+ 공핍층은 전하가 완전히 없는 빈 공간이 아니에요. 자유롭게 움직이는 전자와 정공이 매우 적고, 움직이지 않는 이온이 남아 있는 영역입니다. 순방향에서는 다수 운반자가 접합부 쪽으로 밀려와 공핍층 가장자리의 고정 이온 전하를 상쇄하므로 폭이 줄어듭니다. 역방향에서는 다수 운반자가 접합부에서 멀어져 더 많은 고정 이온이 드러나므로 폭이 늘어납니다.
+</section>
+<p class="small">학습용 단순화 모델입니다. 실제 공핍층 폭은 도핑 농도, 온도, 반도체 재료 및 인가 전압에 따라 달라집니다. 전압 슬라이더는 정성적인 변화를 보여 주며 실제 측정값을 계산하지 않습니다.</p>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const slider=$('voltage');
+let mode='forward';
+function setMode(m){
+ mode=m;
+ if(m==='zero') slider.value=0;
+ if(m==='forward' && +slider.value<=0) slider.value=0.6;
+ if(m==='reverse' && +slider.value>=0) slider.value=-2;
+ update();
+}
+$('zero').onclick=()=>setMode('zero');
+$('forward').onclick=()=>setMode('forward');
+$('reverse').onclick=()=>setMode('reverse');
+slider.addEventListener('input',()=>{mode=+slider.value>0?'forward':(+slider.value<0?'reverse':'zero');update()});
+function el(tag,attrs,parent){
+ const e=document.createElementNS('http://www.w3.org/2000/svg',tag);
+ for(const [k,v] of Object.entries(attrs))e.setAttribute(k,v);
+ parent.appendChild(e);return e;
+}
+function update(){
+ const v=+slider.value;
+ mode=v>0?'forward':v<0?'reverse':'zero';
+ ['zero','forward','reverse'].forEach(id=>$(id).classList.toggle('active',id===mode));
+ $('modeText').textContent=mode==='forward'?'순방향 바이어스':mode==='reverse'?'역방향 바이어스':'전압 없음';
+ $('voltageText').textContent=(v>0?'+':'')+v.toFixed(1)+' V';
+ // illustrative depletion width: narrow in forward, broad in reverse
+ const w= v>0 ? 48-22*Math.min(v/0.8,1) : v<0 ? 60+92*Math.min(Math.abs(v)/5,1) : 60;
+ const left=450-w/2;
+ $('depletion').setAttribute('x',left);$('depletion').setAttribute('width',w);
+ $('depLabel').setAttribute('x',450);
+ const fixed=$('fixed'),carriers=$('carriers'),motions=$('motions');
+ [fixed,carriers,motions].forEach(g=>g.replaceChildren());
+ // fixed acceptor ions on P side and donor ions on N side, near the depletion region
+ const count=Math.max(2,Math.round(w/13));
+ for(let i=0;i<count;i++){
+  const y=125+(i%4)*48;
+  const offset=left+12+(i%2)*13;
+  if(offset>65) {
+   el('circle',{cx:offset,cy:y,r:10,fill:'#e7a4a4',stroke:'#c66c6c'},fixed);
+   el('text',{x:offset,y:y+5,'text-anchor':'middle','font-size':15,'font-weight':800,fill:'#8b3030'},fixed).textContent='−';
+  }
+  const nx=left+w-12-(i%2)*13;
+  if(nx<835){
+   el('circle',{cx:nx,cy:y,r:10,fill:'#9bc4f5',stroke:'#4c91e8'},fixed);
+   el('text',{x:nx,y:y+5,'text-anchor':'middle','font-size':15,'font-weight':800,fill:'#15569a'},fixed).textContent='+';
+  }
+ }
+ // carriers: holes left, electrons right; crowd nearer junction in forward bias
+ const crowd=v>0?0.78: v<0?0.28:0.48;
+ for(let i=0;i<15;i++){
+  const y=112+(i%5)*43;
+  const xP=70+((i*47)%280)*(1-crowd)+ (v>0?crowd*100:0);
+  const xN=830-((i*43)%280)*(1-crowd)- (v>0?crowd*100:0);
+  el('circle',{cx:xP,cy:y,r:7,fill:'#ef7777',stroke:'#c94d4d','stroke-width':1.2},carriers);
+  el('text',{x:xP,y:y+4,'text-anchor':'middle','font-size':10,fill:'white','font-weight':800},carriers).textContent='+';
+  el('circle',{cx:xN,cy:y,r:7,fill:'#2878d0',stroke:'#15569a','stroke-width':1.2},carriers);
+  el('text',{x:xN,y:y+4,'text-anchor':'middle','font-size':10,fill:'white','font-weight':800},carriers).textContent='−';
+ }
+ // motion arrows
+ if(v>0){
+  for(let y of [155,245]){
+   el('line',{x1:left-75,y1:y,x2:left-12,y2:y,stroke:'#d94d4d','stroke-width':4,'marker-end':'url(#arrRed)'},motions);
+   el('line',{x1:left+w+75,y1:y+20,x2:left+w+12,y2:y+20,stroke:'#1769c2','stroke-width':4,'marker-end':'url(#arrBlue)'},motions);
+  }
+  $('widthText').textContent='좁아짐: 전자와 정공이 접합부 쪽으로 밀려옴';
+  $('carrierText').textContent='정공은 P쪽에서, 전자는 N쪽에서 접합부를 향해 이동';
+  $('currentText').textContent='내부 전기장·전위 장벽이 약해져 전류가 잘 흐름';
+  $('fieldText').textContent='순방향 전압이 접합부의 원래 내부 전기장과 반대 효과를 내어 전위 장벽을 낮춥니다. 공핍층의 고정 이온 전하를 이동 운반자가 상쇄하는 범위가 커져 폭이 줄어듭니다.';
+ }else if(v<0){
+  for(let y of [155,245]){
+   el('line',{x1:left-12,y1:y,x2:left-82,y2:y,stroke:'#d94d4d','stroke-width':4,'marker-end':'url(#arrRed)'},motions);
+   el('line',{x1:left+w+12,y1:y+20,x2:left+w+82,y2:y+20,stroke:'#1769c2','stroke-width':4,'marker-end':'url(#arrBlue)'},motions);
+  }
+  $('widthText').textContent='넓어짐: 전자와 정공이 접합부에서 멀어짐';
+  $('carrierText').textContent='정공은 P쪽 바깥으로, 전자는 N쪽 바깥으로 이동';
+  $('currentText').textContent='내부 전기장·전위 장벽이 강해져 다수 운반자 전류가 거의 차단됨';
+  $('fieldText').textContent='역방향 전압은 원래 내부 전기장과 같은 방향의 효과를 내어 전위 장벽을 높입니다. 접합부에서 다수 운반자가 멀어져 고정 이온이 더 넓은 범위에 드러나므로 폭이 커집니다.';
+ }else{
+  $('widthText').textContent='평형 상태의 폭';
+  $('carrierText').textContent='확산과 내부 전기장에 의한 이동이 균형';
+  $('currentText').textContent='순방향 또는 역방향 외부 전압이 없음';
+  $('fieldText').textContent='외부 전압이 없을 때 확산하려는 경향과 내부 전기장이 만드는 반대 효과가 균형을 이룹니다.';
+ }
+}
+update();
+</script>
+</body>
+</html>
